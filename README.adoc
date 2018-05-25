@@ -1,0 +1,21 @@
+= Fabric8-NATS
+
+Playing with NATS.io on OpenShift/Minishift
+
+== Deploying NATS
+
+These commands should deploy the https://github.com/nats-io/nats-operator[NATS.io operator]
+in the OpenShift project specified by the `NAMESPACE` parameter in the template (this means
+that the corresponding project must exist prior to applying the template)
+
+```
+# login as a system admin
+$ oc login https://192.168.99.100:8443 --insecure-skip-tls-verify=true -u system:admin
+
+# deploy the NATS operator in the `fabric8` project. This will deploy a pod and create a CRD, too.
+$ oc process -f openshift/nats-operator.yaml -p NAMESPACE=fabric8 | oc apply -f -
+
+# deploy a cluster with 3 replicas
+$ oc apply -f nats-cluster.yaml
+
+```
