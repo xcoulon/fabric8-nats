@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"runtime"
 
 	"github.com/fabric8-services/fabric8-nats/configuration"
@@ -25,15 +26,17 @@ func main() {
 			nc.Close()
 		}()
 		log.Infof("connection opened: '%t'...", nc.IsConnected())
-
-		_, err = nc.Subscribe(config.GetSubject(), func(msg *nats.Msg) {
-			// Handle the message
-			log.Infof("received message on '%s': '%s'", msg.Subject, string(msg.Data))
-		})
-		if err != nil {
-			log.Fatal(err)
+		subjects := config.GetSubjects()
+		for _, sub := range subjects {
+			_, err = nc.QueueSubscribe(sub, fmt.Sprintf("queue-%s", sub), func(msg *nats.Msg) {
+				// Handle the message
+				log.Infof("received message with subject '%s' on queue '%s': '%s'", msg.Subject, msg.Sub.Queue, string(msg.Data))
+			})
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Infof("listening on '%s'...", sub)
 		}
-		log.Infof("listening on '%s'...", config.GetSubject())
 		done := make(chan bool)
 		// block to keep the connection and the subscription alive
 		<-done
