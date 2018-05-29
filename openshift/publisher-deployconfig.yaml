@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: DeploymentConfig
+metadata:
+  name: publisher
+spec:
+  template:
+    metadata:
+      labels:
+        app: publisher
+    spec:
+      containers:
+      - name: publisher
+        image: "publisher:latest"
+        env:
+        - name: F8_BROKER_URL
+          value: "nats://example-nats-cluster:4222"
+        - name: F8_SUBJECT
+          value: "test"
+        - name: F8_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+  replicas: 1
+  triggers:
+    - type: "ConfigChange" 
+    - type: "ImageChange" 
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - "publisher"
+        from:
+          kind: "ImageStreamTag"
+          name: "publisher:latest"
+  strategy: 
+    type: "Rolling"
+  paused: false 
+  revisionHistoryLimit: 2 
+  minReadySeconds: 0

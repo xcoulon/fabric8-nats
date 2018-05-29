@@ -17,5 +17,4 @@ $ oc process -f openshift/nats-operator.yaml -p NAMESPACE=fabric8 | oc apply -f 
 
 # deploy a cluster with 3 replicas
 $ oc apply -f nats-cluster.yaml
-
 ```
