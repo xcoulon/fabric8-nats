@@ -12,7 +12,7 @@ const (
 
 	varBrokerURL = "broker.url"
 	varPodName   = "pod.name"
-	varSubject   = "subject"
+	varSubjects  = "subjects"
 )
 
 // Config encapsulates the Viper configuration registry which stores the
@@ -37,7 +37,7 @@ func New() Config {
 
 func (c *Config) setConfigDefaults() {
 	c.v.SetDefault(varPodName, "localhost")
-	c.v.SetDefault(varSubject, "test")
+	c.v.SetDefault(varSubjects, "test")
 }
 
 // GetBrokerURL returns URL of the broker to connect to, to publish and subscribe to messages
@@ -50,7 +50,8 @@ func (c *Config) GetPodName() string {
 	return c.v.GetString(varPodName)
 }
 
-// GetSubject returns the subject to publish/subscribe
-func (c *Config) GetSubject() string {
-	return c.v.GetString(varSubject)
+// GetSubjects returns the subject to publish/subscribe
+func (c *Config) GetSubjects() []string {
+	subjects := c.v.GetString(varSubjects)
+	return strings.Split(subjects, ",")
 }

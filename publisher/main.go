@@ -28,16 +28,18 @@ func main() {
 
 	// infinite loop of message publishing...
 	count := 1
+	subjects := config.GetSubjects()
 	for {
 		// block for a few seconds...
 		<-time.After(3 * time.Second)
 		msg := fmt.Sprintf("message #%d", count)
-		nc.Publish(config.GetSubject(), []byte(msg))
+		for _, sub := range subjects {
+			nc.Publish(sub, []byte(msg))
+			log.Infof("published on subject '%s': '%s'", sub, msg)
+		}
 		nc.Flush()
 		if err := nc.LastError(); err != nil {
 			log.Fatal(err)
-		} else {
-			log.Infof("published on subject '%s': '%s'", config.GetSubject(), msg)
 		}
 		count++
 	}

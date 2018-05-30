@@ -1,4 +1,4 @@
-= Fabric8-NATS
+= Fabric8-NATS / Test case 2
 
 Playing with NATS.io on OpenShift/Minishift
 
@@ -17,4 +17,102 @@ $ oc process -f openshift/nats-operator.yaml -p NAMESPACE=fabric8 | oc apply -f 
 
 # deploy a cluster with 3 replicas
 $ oc apply -f nats-cluster.yaml
+```
+
+== Building and deploying the publisher
+
+Each new version of the publisher is automatically deployed using an `ImageStream` and a `DeployConfig`:
+
+```
+# Create the ImageStream
+oc apply -f openshift/publisher-imagestream.yaml
+
+# create the DC
+oc apply -f openshift/publisher-deployconfig.yaml
+```
+
+Then, building and deploying a new version of the publisher happens with
+
+```
+make deploy-publisher
+```
+
+== Building and deploying the subscribers
+
+All subscribers share the same code but are configured differently in their DeployConfig.
+
+To avoid repetition among the YAML files, both subscribers are created using the same OpenShift template:
+
+```
+# subscriber 1 with a single replica (default)
+$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber1 -p SUBJECTS=subject1 | oc apply -f -
+
+# subscriber 2 with a single replica (default)
+$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber2 -p SUBJECTS=subject2 | oc apply -f -
+```
+
+The template used above creates both the `ImageStream` and the `DeployConfig` resources for each subscriber. Once this is done, a new version of the code can be deployed with
+
+```
+$ make deploy-subscribers
+```
+
+== Checking the results
+
+Once both the publisher and the 2 subscribers have been deployed, checking the pods and the logs shows that the single instance of subscriber1 receives all messages sent on the `queue-subject1`, and the same applies for the single instance of subscriber2 listening on `queue-subject2`:
+
+```
+# check the pods
+$ oc get pods
+NAME                             READY     STATUS    RESTARTS   AGE
+nats-console                     1/1       Running   0          5h
+nats-gzkj7k35lg                  1/1       Running   0          5h
+nats-n58mxjgb3x                  1/1       Running   0          5h
+nats-operator-7956769cc9-n4sl2   1/1       Running   1          4d
+publisher-19-j6s8q               1/1       Running   0          1h
+subscriber1-6-srmzl              1/1       Running   0          8m
+subscriber2-10-lbh6b             1/1       Running   0          8m
+
+# checks the publisher logs 
+$ oc logs -f publisher-19-j6s8q
+...
+time="2018-05-30T07:23:59Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject1': 'message #236'"
+time="2018-05-30T07:23:59Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject2': 'message #236'"
+time="2018-05-30T07:24:02Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject1': 'message #237'"
+time="2018-05-30T07:24:02Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject2': 'message #237'"
+time="2018-05-30T07:24:05Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject1': 'message #238'"
+time="2018-05-30T07:24:05Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject2': 'message #238'"
+time="2018-05-30T07:24:08Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject1': 'message #239'"
+time="2018-05-30T07:24:08Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject2': 'message #239'"
+
+
+# check the logs on the single instance of subscriber 1
+$ oc logs -f --tail 5 subscriber1-6-srmzl
+...
+time="2018-05-30T07:23:59Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #236'"
+time="2018-05-30T07:24:02Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #237'"
+time="2018-05-30T07:24:05Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #238'"
+time="2018-05-30T07:24:08Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #239'"
+time="2018-05-30T07:24:11Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #240'"
+
+
+# check the logs on the single instance of subscriber 2 (deleted after a few messages were received)
+$ oc logs -f --tail 5 subscriber2-10-lbh6b
+...
+time="2018-05-30T07:23:59Z" level=info msg="[subscriber2-10-lbh6b] received message with subject 'subject2' on queue 'queue-subject2': 'message #236'"
+time="2018-05-30T07:24:02Z" level=info msg="[subscriber2-10-lbh6b] received message with subject 'subject2' on queue 'queue-subject2': 'message #237'"
+rpc error: code = Unknown desc = Error: No such container: 24e3fe90ddc65e35a543f5d79efe59588a944259cb738b4737669894f8483735%
+```
+
+After deleting the single instance (pod) of the subscriber2 (after msg `#237` was received), a new pod is scheduled and it cathes up with the messages that were not delivered on the `queue-subscriber2`:
+
+```
+$ oc logs -f subscriber2-10-dkhhz
+time="2018-05-30T07:24:05Z" level=info msg="[subscriber2-10-dkhhz] opening connection to 'nats://example-nats-cluster:4222'..."
+time="2018-05-30T07:24:05Z" level=info msg="[subscriber2-10-dkhhz] connection opened: 'true'..."
+time="2018-05-30T07:24:05Z" level=info msg="[subscriber2-10-dkhhz] listening on 'subject2'..."
+time="2018-05-30T07:24:05Z" level=info msg="[subscriber2-10-dkhhz] received message with subject 'subject2' on queue 'queue-subject2': 'message #238'"
+time="2018-05-30T07:24:08Z" level=info msg="[subscriber2-10-dkhhz] received message with subject 'subject2' on queue 'queue-subject2': 'message #239'"
+time="2018-05-30T07:24:11Z" level=info msg="[subscriber2-10-dkhhz] received message with subject 'subject2' on queue 'queue-subject2': 'message #240'"
+
 ```
