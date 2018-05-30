@@ -44,11 +44,11 @@ All subscribers share the same code but are configured differently in their Depl
 To avoid repetition among the YAML files, both subscribers are created using the same OpenShift template:
 
 ```
-# subscriber 1 with a single replica (default)
-$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber1 -p SUBJECTS=subject1 | oc apply -f -
+# subscriber 1 with 0 replica 
+$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber1 -p REPLICA_COUNT=0 -p SUBJECTS=subject1 | oc apply -f -
 
-# subscriber 2 with 2 replicas
-$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber2 -p REPLICA_COUNT=2 -p SUBJECTS=subject2 | oc apply -f -
+# subscriber 2 with 0 replica
+$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber2 -p REPLICA_COUNT=0 -p SUBJECTS=subject2 | oc apply -f -
 ```
 
 The template used above creates both the `ImageStream` and the `DeployConfig` resources for each subscriber. Once this is done, a new version of the code can be deployed with
@@ -59,55 +59,72 @@ $ make deploy-subscribers
 
 == Checking the results
 
-Once both the publisher and the 2 subscribers have been deployed, checking the pods and the logs shows that the single instance of subscriber1 receives all messages sent on the `queue-subject1` while the 2 instances of subscriber2 will receive only 1 copy of the message (i.e., a single instance receives the message). Also, note that each message is published with 2 distinct subjects, to reach each group of subscriber.
 
 ```
 # check the pods
 $ oc get pods
-NAME                             READY     STATUS    RESTARTS   AGE
-nats-console                     1/1       Running   0          5h
-nats-gzkj7k35lg                  1/1       Running   0          5h
-nats-n58mxjgb3x                  1/1       Running   0          5h
-nats-operator-7956769cc9-n4sl2   1/1       Running   1          4d
-publisher-19-j6s8q               1/1       Running   0          1h
-subscriber1-6-srmzl              1/1       Running   0          8m
-subscriber2-10-blc84             1/1       Running   0          8m
-subscriber2-10-lbh6b             1/1       Running   0          8m
+NAME                             READY     STATUS      RESTARTS   AGE
+NAME                             READY     STATUS      RESTARTS   AGE
+nats-operator-7956769cc9-n4sl2   1/1       Running     2          4d
+nats-9zwhh5vmrn                  1/1       Running     0          31m
+nats-t5pfn22bb9                  1/1       Running     0          31m
+publisher-19-kc7ch               1/1       Running     0          3s
+
 
 # checks the publisher logs 
-$ oc logs -f --tail 10 publisher-19-j6s8q
-time="2018-05-29T14:49:50Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject1': 'message #2357'"
-time="2018-05-29T14:49:50Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject2': 'message #2357'"
-time="2018-05-29T14:49:53Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject1': 'message #2358'"
-time="2018-05-29T14:49:53Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject2': 'message #2358'"
-time="2018-05-29T14:49:56Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject1': 'message #2359'"
-time="2018-05-29T14:49:56Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject2': 'message #2359'"
-time="2018-05-29T14:49:59Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject1': 'message #2360'"
-time="2018-05-29T14:49:59Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject2': 'message #2360'"
-time="2018-05-29T14:50:02Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject1': 'message #2361'"
-time="2018-05-29T14:50:02Z" level=info msg="[publisher-19-j6s8q] published on subject 'subject2': 'message #2361'"
+oc logs -f publisher-19-kc7ch
+time="2018-05-30T07:43:46Z" level=info msg="[publisher-19-kc7ch] opening connection to 'nats://example-nats-cluster:4222'..."
+time="2018-05-30T07:43:46Z" level=info msg="[publisher-19-kc7ch] connection opened: 'true'..."
+time="2018-05-30T07:43:49Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #1'"
+time="2018-05-30T07:43:49Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #1'"
+time="2018-05-30T07:43:52Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #2'"
+time="2018-05-30T07:43:52Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #2'"
+time="2018-05-30T07:43:55Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #3'"
+time="2018-05-30T07:43:55Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #3'"
+time="2018-05-30T07:43:58Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #4'"
+time="2018-05-30T07:43:58Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #4'"
+time="2018-05-30T07:44:01Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #5'"
+time="2018-05-30T07:44:01Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #5'"
+...
+
+# now, schedule 1 instance for each subscriber
+$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber1 -p REPLICA_COUNT=1 -p SUBJECTS=subject1 | oc apply -f -
+imagestream "subscriber1" unchanged
+deploymentconfig "subscriber1" configured
+$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber2 -p REPLICA_COUNT=1 -p SUBJECTS=subject2 | oc apply -f -
+imagestream "subscriber2" unchanged
+deploymentconfig "subscriber2" configured
+$ oc get pods
+NAME                             READY     STATUS      RESTARTS   AGE
+nats-operator-7956769cc9-n4sl2   1/1       Running     2          4d
+nats-9zwhh5vmrn                  1/1       Running     0          34m
+nats-t5pfn22bb9                  1/1       Running     0          34m
+publisher-19-kc7ch               1/1       Running     0          3m
+subscriber1-8-2qbn5              1/1       Running     0          43s
+subscriber2-12-wrnpd             1/1       Running     0          36s
+
 
 # check the logs on the single instance of subscriber 1
-$ oc logs -f --tail 5 subscriber1-6-srmzl
-time="2018-05-29T14:49:50Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #2357'"
-time="2018-05-29T14:49:53Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #2358'"
-time="2018-05-29T14:49:56Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #2359'"
-time="2018-05-29T14:49:59Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #2360'"
-time="2018-05-29T14:50:02Z" level=info msg="[subscriber1-6-srmzl] received message with subject 'subject1' on queue 'queue-subject1': 'message #2361'"
+$ oc logs subscriber1-8-2qbn5
+time="2018-05-30T07:46:12Z" level=info msg="[subscriber1-8-2qbn5] opening connection to 'nats://example-nats-cluster:4222'..."
+time="2018-05-30T07:46:12Z" level=info msg="[subscriber1-8-2qbn5] connection opened: 'true'..."
+time="2018-05-30T07:46:12Z" level=info msg="[subscriber1-8-2qbn5] listening on 'subject1'..."
+time="2018-05-30T07:46:13Z" level=info msg="[subscriber1-8-2qbn5] received message with subject 'subject1' on queue 'queue-subject1': 'message #49'"
+time="2018-05-30T07:46:16Z" level=info msg="[subscriber1-8-2qbn5] received message with subject 'subject1' on queue 'queue-subject1': 'message #50'"
+time="2018-05-30T07:46:19Z" level=info msg="[subscriber1-8-2qbn5] received message with subject 'subject1' on queue 'queue-subject1': 'message #51'"
+...
 
 # check the logs on the first instance of subscriber 2
-oc logs -f --tail 5 subscriber2-10-blc84
-time="2018-05-29T14:49:38Z" level=info msg="[subscriber2-10-blc84] received message with subject 'subject2' on queue 'queue-subject2': 'message #2353'"
-time="2018-05-29T14:49:41Z" level=info msg="[subscriber2-10-blc84] received message with subject 'subject2' on queue 'queue-subject2': 'message #2354'"
-time="2018-05-29T14:49:56Z" level=info msg="[subscriber2-10-blc84] received message with subject 'subject2' on queue 'queue-subject2': 'message #2359'"
-time="2018-05-29T14:50:02Z" level=info msg="[subscriber2-10-blc84] received message with subject 'subject2' on queue 'queue-subject2': 'message #2361'"
-time="2018-05-29T14:50:05Z" level=info msg="[subscriber2-10-blc84] received message with subject 'subject2' on queue 'queue-subject2': 'message #2362'"
-
-# check the logs on the second instance of subscriber 2
-$ oc logs -f --tail 5 subscriber2-10-lbh6b
-time="2018-05-29T14:49:44Z" level=info msg="[subscriber2-10-lbh6b] received message with subject 'subject2' on queue 'queue-subject2': 'message #2355'"
-time="2018-05-29T14:49:47Z" level=info msg="[subscriber2-10-lbh6b] received message with subject 'subject2' on queue 'queue-subject2': 'message #2356'"
-time="2018-05-29T14:49:50Z" level=info msg="[subscriber2-10-lbh6b] received message with subject 'subject2' on queue 'queue-subject2': 'message #2357'"
-time="2018-05-29T14:49:53Z" level=info msg="[subscriber2-10-lbh6b] received message with subject 'subject2' on queue 'queue-subject2': 'message #2358'"
-time="2018-05-29T14:49:59Z" level=info msg="[subscriber2-10-lbh6b] received message with subject 'subject2' on queue 'queue-subject2': 'message #2360'"
+$ oc logs subscriber2-12-wrnpd
+time="2018-05-30T07:46:19Z" level=info msg="[subscriber2-12-wrnpd] opening connection to 'nats://example-nats-cluster:4222'..."
+time="2018-05-30T07:46:19Z" level=info msg="[subscriber2-12-wrnpd] connection opened: 'true'..."
+time="2018-05-30T07:46:19Z" level=info msg="[subscriber2-12-wrnpd] listening on 'subject2'..."
+time="2018-05-30T07:46:19Z" level=info msg="[subscriber2-12-wrnpd] received message with subject 'subject2' on queue 'queue-subject2': 'message #51'"
+time="2018-05-30T07:46:22Z" level=info msg="[subscriber2-12-wrnpd] received message with subject 'subject2' on queue 'queue-subject2': 'message #52'"
+time="2018-05-30T07:46:25Z" level=info msg="[subscriber2-12-wrnpd] received message with subject 'subject2' on queue 'queue-subject2': 'message #53'"
+...
 ```
+
+== Conclusion
+
+While there were no instances of `subscriber1` and `subscriber2`, the messages that were not delivered were lost.
