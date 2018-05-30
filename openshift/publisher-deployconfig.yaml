@@ -14,8 +14,8 @@ spec:
         env:
         - name: F8_BROKER_URL
           value: "nats://example-nats-cluster:4222"
-        - name: F8_SUBJECT
-          value: "test"
+        - name: F8_SUBJECTS
+          value: "subject1,subject2"
         - name: F8_POD_NAME
           valueFrom:
             fieldRef:

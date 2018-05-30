@@ -7,6 +7,12 @@ parameters:
   - name: SERVICE
     description: "The name of the service"
     value: service1
+  - name: SUBJECTS
+    description: "The name of the subjects (a comma-separated value) to listen to"
+    value: service1
+  - name: REPLICA_COUNT
+    description: "The number of replicas of the service"
+    value: "1"
 objects:
   - apiVersion: v1
     kind: ImageStream
@@ -17,7 +23,7 @@ objects:
     metadata:
       name: ${SERVICE}
     spec:
-      replicas: 1
+      replicas: ${{REPLICA_COUNT}}
       revisionHistoryLimit: 2
       selector:
         app: ${SERVICE}
@@ -41,8 +47,8 @@ objects:
           - env:
             - name: F8_BROKER_URL
               value: nats://example-nats-cluster:4222
-            - name: F8_SUBJECT
-              value: test
+            - name: F8_SUBJECTS
+              value: ${SUBJECTS}
             - name: F8_POD_NAME
               valueFrom:
                 fieldRef:
