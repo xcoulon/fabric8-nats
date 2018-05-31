@@ -2,21 +2,12 @@
 
 Playing with NATS.io on OpenShift/Minishift
 
-== Deploying NATS
+== Deploying NATS Streaming server
 
-These commands should deploy the https://github.com/nats-io/nats-operator[NATS.io operator]
-in the OpenShift project specified by the `NAMESPACE` parameter in the template (this means
-that the corresponding project must exist prior to applying the template)
+The NATS Streaming Server is not supported by the NATS-Operator https://github.com/nats-io/nats-operator/issues/18[yet], but it can be deployed using a regular `deployment` manifest:
 
 ```
-# login as a system admin
-$ oc login https://192.168.99.100:8443 --insecure-skip-tls-verify=true -u system:admin
-
-# deploy the NATS operator in the `fabric8` project. This will deploy a pod and create a CRD, too.
-$ oc process -f openshift/nats-operator.yaml -p NAMESPACE=fabric8 | oc apply -f -
-
-# deploy a cluster with 3 replicas
-$ oc apply -f nats-cluster.yaml
+$ oc apply -f openshift/nats-streaming-deployment.yaml
 ```
 
 == Building and deploying the publisher
@@ -61,70 +52,98 @@ $ make deploy-subscribers
 
 
 ```
-# check the pods
-$ oc get pods
-NAME                             READY     STATUS      RESTARTS   AGE
-NAME                             READY     STATUS      RESTARTS   AGE
-nats-operator-7956769cc9-n4sl2   1/1       Running     2          4d
-nats-9zwhh5vmrn                  1/1       Running     0          31m
-nats-t5pfn22bb9                  1/1       Running     0          31m
-publisher-19-kc7ch               1/1       Running     0          3s
+# start the nats-streaming-server (previous replicas was set to '0')
+$ oc scale deploy/nats-streaming-server --replicas=1
+deployment "nats-streaming-server" scaled
 
+# check the logs in the server
+$ oc logs -f nats-streaming-server-6f58fcd54f-6rfmt
+[1] 2018/05/31 13:22:43.747038 [INF] STREAM: Starting nats-streaming-server[f8-nats-streaming-cluster] version 0.9.2
+[1] 2018/05/31 13:22:43.747093 [INF] STREAM: ServerID: tQN0xcAYPEX43IDEoHErJB
+[1] 2018/05/31 13:22:43.747095 [INF] STREAM: Go version: go1.9.5
+[1] 2018/05/31 13:22:43.747693 [INF] Starting nats-server version 1.0.7
+[1] 2018/05/31 13:22:43.747698 [INF] Git commit [not set]
+[1] 2018/05/31 13:22:43.747761 [INF] Starting http monitor on 0.0.0.0:8222
+[1] 2018/05/31 13:22:43.747876 [INF] Listening for client connections on 0.0.0.0:4222
+[1] 2018/05/31 13:22:43.747879 [INF] Server is ready
+[1] 2018/05/31 13:22:43.774350 [INF] STREAM: Recovering the state...
+[1] 2018/05/31 13:22:43.774401 [INF] STREAM: No recovered state
+[1] 2018/05/31 13:22:44.025119 [INF] STREAM: Message store is MEMORY
+[1] 2018/05/31 13:22:44.025152 [INF] STREAM: ---------- Store Limits ----------
+[1] 2018/05/31 13:22:44.025155 [INF] STREAM: Channels:                  100 *
+[1] 2018/05/31 13:22:44.025158 [INF] STREAM: --------- Channels Limits --------
+[1] 2018/05/31 13:22:44.025159 [INF] STREAM:   Subscriptions:          1000 *
+[1] 2018/05/31 13:22:44.025161 [INF] STREAM:   Messages     :       1000000 *
+[1] 2018/05/31 13:22:44.025162 [INF] STREAM:   Bytes        :     976.56 MB *
+[1] 2018/05/31 13:22:44.025163 [INF] STREAM:   Age          :     unlimited *
+[1] 2018/05/31 13:22:44.025164 [INF] STREAM:   Inactivity   :     unlimited *
+[1] 2018/05/31 13:22:44.025166 [INF] STREAM: ----------------------------------
+^C
+ 
+# start the publisher (replica count was previously lowered to '0' to stop all publishing)
+$ oc scale dc/publisher --replicas=1
+deploymentconfig "publisher" scaled
 
-# checks the publisher logs 
-oc logs -f publisher-19-kc7ch
-time="2018-05-30T07:43:46Z" level=info msg="[publisher-19-kc7ch] opening connection to 'nats://example-nats-cluster:4222'..."
-time="2018-05-30T07:43:46Z" level=info msg="[publisher-19-kc7ch] connection opened: 'true'..."
-time="2018-05-30T07:43:49Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #1'"
-time="2018-05-30T07:43:49Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #1'"
-time="2018-05-30T07:43:52Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #2'"
-time="2018-05-30T07:43:52Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #2'"
-time="2018-05-30T07:43:55Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #3'"
-time="2018-05-30T07:43:55Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #3'"
-time="2018-05-30T07:43:58Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #4'"
-time="2018-05-30T07:43:58Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #4'"
-time="2018-05-30T07:44:01Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject1': 'message #5'"
-time="2018-05-30T07:44:01Z" level=info msg="[publisher-19-kc7ch] published on subject 'subject2': 'message #5'"
-...
+# check the logs in the publisher
+$ oc logs -f publisher-39-6qlx8
+INFO[0000] opening connection to cluster 'f8-nats-streaming-cluster' on nats://nats-streaming-server:4222'...  id=publisher-39-6qlx8
+INFO[0000] connection established with server at 'nats://nats-streaming-server:4222'  id=publisher-39-6qlx8
+INFO[0003] published on subject 'subject1': 'message #1'  id=publisher-39-6qlx8
+INFO[0003] published on subject 'subject2': 'message #1'  id=publisher-39-6qlx8
+INFO[0006] published on subject 'subject1': 'message #2'  id=publisher-39-6qlx8
+INFO[0006] published on subject 'subject2': 'message #2'  id=publisher-39-6qlx8
+INFO[0009] published on subject 'subject1': 'message #3'  id=publisher-39-6qlx8
+INFO[0009] published on subject 'subject2': 'message #3'  id=publisher-39-6qlx8
+INFO[0012] published on subject 'subject1': 'message #4'  id=publisher-39-6qlx8
+INFO[0012] published on subject 'subject2': 'message #4'  id=publisher-39-6qlx8
+INFO[0015] published on subject 'subject1': 'message #5'  id=publisher-39-6qlx8
+INFO[0015] published on subject 'subject2': 'message #5'  id=publisher-39-6qlx8
+INFO[0018] published on subject 'subject1': 'message #6'  id=publisher-39-6qlx8
+INFO[0018] published on subject 'subject2': 'message #6'  id=publisher-39-6qlx8
+^C
 
-# now, schedule 1 instance for each subscriber
-$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber1 -p REPLICA_COUNT=1 -p SUBJECTS=subject1 | oc apply -f -
-imagestream "subscriber1" unchanged
-deploymentconfig "subscriber1" configured
-$ oc process -f openshift/subscriber.tmpl.yaml -p SERVICE=subscriber2 -p REPLICA_COUNT=1 -p SUBJECTS=subject2 | oc apply -f -
-imagestream "subscriber2" unchanged
-deploymentconfig "subscriber2" configured
-$ oc get pods
-NAME                             READY     STATUS      RESTARTS   AGE
-nats-operator-7956769cc9-n4sl2   1/1       Running     2          4d
-nats-9zwhh5vmrn                  1/1       Running     0          34m
-nats-t5pfn22bb9                  1/1       Running     0          34m
-publisher-19-kc7ch               1/1       Running     0          3m
-subscriber1-8-2qbn5              1/1       Running     0          43s
-subscriber2-12-wrnpd             1/1       Running     0          36s
+# start 2 subscribers at once, configured with a durable subscription
+# and an option to retrieve all available messages in the queue
+$ oc scale dc/subscriber1 --replicas=2
+deploymentconfig "subscriber1" scaled
 
+# check the logs of the first subscriber 
+# oc logs -f subscriber1-20-9gpfs
+INFO[0000] opening connection to cluster 'f8-nats-streaming-cluster' on nats://nats-streaming-server:4222'...  id=subscriber1-20-9gpfs
+INFO[0000] connection established with server at 'nats://nats-streaming-server:4222'  id=subscriber1-20-9gpfs
+INFO[0000] listening on 'subject1'...                    id=subscriber1-20-9gpfs
+INFO[0004] received message with subject 'subject1': 'message #14'  id=subscriber1-20-9gpfs
+INFO[0010] received message with subject 'subject1': 'message #16'  id=subscriber1-20-9gpfs
+INFO[0016] received message with subject 'subject1': 'message #18'  id=subscriber1-20-9gpfs
+^C
 
-# check the logs on the single instance of subscriber 1
-$ oc logs subscriber1-8-2qbn5
-time="2018-05-30T07:46:12Z" level=info msg="[subscriber1-8-2qbn5] opening connection to 'nats://example-nats-cluster:4222'..."
-time="2018-05-30T07:46:12Z" level=info msg="[subscriber1-8-2qbn5] connection opened: 'true'..."
-time="2018-05-30T07:46:12Z" level=info msg="[subscriber1-8-2qbn5] listening on 'subject1'..."
-time="2018-05-30T07:46:13Z" level=info msg="[subscriber1-8-2qbn5] received message with subject 'subject1' on queue 'queue-subject1': 'message #49'"
-time="2018-05-30T07:46:16Z" level=info msg="[subscriber1-8-2qbn5] received message with subject 'subject1' on queue 'queue-subject1': 'message #50'"
-time="2018-05-30T07:46:19Z" level=info msg="[subscriber1-8-2qbn5] received message with subject 'subject1' on queue 'queue-subject1': 'message #51'"
-...
+# check the logs of the second subscriber
+$ oc logs -f subscriber1-20-j4mgh
+INFO[0000] opening connection to cluster 'f8-nats-streaming-cluster' on nats://nats-streaming-server:4222'...  id=subscriber1-20-j4mgh
+INFO[0000] connection established with server at 'nats://nats-streaming-server:4222'  id=subscriber1-20-j4mgh
+INFO[0000] listening on 'subject1'...                    id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #1'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #2'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #3'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #4'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #5'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #6'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #7'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #8'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #9'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #10'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #11'  id=subscriber1-20-j4mgh
+INFO[0000] received message with subject 'subject1': 'message #12'  id=subscriber1-20-j4mgh
+INFO[0001] received message with subject 'subject1': 'message #13'  id=subscriber1-20-j4mgh
+INFO[0007] received message with subject 'subject1': 'message #15'  id=subscriber1-20-j4mgh
+INFO[0013] received message with subject 'subject1': 'message #17'  id=subscriber1-20-j4mgh
+INFO[0019] received message with subject 'subject1': 'message #19'  id=subscriber1-20-j4mgh
+INFO[0025] received message with subject 'subject1': 'message #21'  id=subscriber1-20-j4mgh
+^C
 
-# check the logs on the first instance of subscriber 2
-$ oc logs subscriber2-12-wrnpd
-time="2018-05-30T07:46:19Z" level=info msg="[subscriber2-12-wrnpd] opening connection to 'nats://example-nats-cluster:4222'..."
-time="2018-05-30T07:46:19Z" level=info msg="[subscriber2-12-wrnpd] connection opened: 'true'..."
-time="2018-05-30T07:46:19Z" level=info msg="[subscriber2-12-wrnpd] listening on 'subject2'..."
-time="2018-05-30T07:46:19Z" level=info msg="[subscriber2-12-wrnpd] received message with subject 'subject2' on queue 'queue-subject2': 'message #51'"
-time="2018-05-30T07:46:22Z" level=info msg="[subscriber2-12-wrnpd] received message with subject 'subject2' on queue 'queue-subject2': 'message #52'"
-time="2018-05-30T07:46:25Z" level=info msg="[subscriber2-12-wrnpd] received message with subject 'subject2' on queue 'queue-subject2': 'message #53'"
-...
 ```
 
-== Conclusion
+=== Conclusion
 
-While there were no instances of `subscriber1` and `subscriber2`, the messages that were not delivered were lost.
+With the `durable name` and `deliver all available` options in place, the 2 subscribers 
+received all the messsage emited by the publisher, even when they were not running.

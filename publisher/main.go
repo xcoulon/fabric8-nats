@@ -6,7 +6,7 @@ import (
 
 	"github.com/fabric8-services/fabric8-nats/configuration"
 	"github.com/fabric8-services/fabric8-nats/log"
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/go-nats-streaming"
 )
 
 func main() {
@@ -15,16 +15,14 @@ func main() {
 	config := configuration.New()
 
 	// open a connection to the NATS server
-	log.Infof("opening connection to '%s'...", config.GetBrokerURL())
-	nc, err := nats.Connect(config.GetBrokerURL())
+	log.Infof("opening connection to cluster '%s' on %s'...", config.GetClusterID(), config.GetBrokerURL())
+	sc, err := stan.Connect(config.GetClusterID(), config.GetClientID(), stan.NatsURL(config.GetBrokerURL()))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Can't connect: %v.\nMake sure a NATS Streaming Server is running at '%s'", err, config.GetBrokerURL())
 	}
-	defer func() {
-		nc.Close()
-	}()
+	defer sc.Close()
 
-	log.Infof("connection opened: '%t'...", nc.IsConnected())
+	log.Infof("connection established with server at '%s'", config.GetBrokerURL())
 
 	// infinite loop of message publishing...
 	count := 1
@@ -34,12 +32,8 @@ func main() {
 		<-time.After(3 * time.Second)
 		msg := fmt.Sprintf("message #%d", count)
 		for _, sub := range subjects {
-			nc.Publish(sub, []byte(msg))
+			sc.Publish(sub, []byte(msg))
 			log.Infof("published on subject '%s': '%s'", sub, msg)
-		}
-		nc.Flush()
-		if err := nc.LastError(); err != nil {
-			log.Fatal(err)
 		}
 		count++
 	}

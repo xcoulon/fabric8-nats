@@ -39,20 +39,29 @@ objects:
         type: Rolling
       template:
         metadata:
-          creationTimestamp: null
           labels:
-            app: ${SERVICE}
+            app: "${SERVICE}"
+            type: "streaming"
         spec:
           containers:
           - env:
             - name: F8_BROKER_URL
-              value: nats://example-nats-cluster:4222
+              value: nats://nats-streaming-server:4222
             - name: F8_SUBJECTS
               value: ${SUBJECTS}
+            - name: F8_CLUSTER_ID
+              value: "f8-nats-streaming-cluster"
+            - name: F8_CLIENT_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: F8_QUEUE_GROUP
+              value: "${SERVICE}-queuegroup"
+            - name: F8_DURABLE_NAME
+              value: "${SERVICE}-durable-queue"
             - name: F8_POD_NAME
               valueFrom:
                 fieldRef:
-                  apiVersion: v1
                   fieldPath: metadata.name
             image: 172.30.1.1:5000/fabric8/subscriber:latest
             imagePullPolicy: Always

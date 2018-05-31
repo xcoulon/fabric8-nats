@@ -1,0 +1,38 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nats-streaming-server
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: nats-streaming-server
+        type: "streaming"
+    spec:
+      containers:
+      - name: "nats-streaming-server"
+        image: "nats-streaming:0.9.2"
+        command: ["/nats-streaming-server"]
+        args: ["-m","8222","--cluster_id","f8-nats-streaming-cluster"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: nats-streaming-server
+  name: nats-streaming-server
+spec:
+  ports:
+  - name: client
+    port: 4222
+    protocol: TCP
+    targetPort: 4222
+  - name: mgmt
+    port: 8222
+    protocol: TCP
+    targetPort: 8222
+  selector:
+    name: nats-streaming-server
+  type: ClusterIP

@@ -30,7 +30,7 @@
   unused-packages = true
 
 [[constraint]]
-  name="github.com/nats-io/go-nats"
+  name="github.com/nats-io/go-nats-streaming"
   revision="master"
 
 [[constraint]]

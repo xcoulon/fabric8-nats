@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"runtime"
 
 	"github.com/fabric8-services/fabric8-nats/configuration"
 	"github.com/fabric8-services/fabric8-nats/log"
-	"github.com/nats-io/go-nats"
+	"github.com/nats-io/go-nats-streaming"
 )
 
 func main() {
@@ -16,22 +15,22 @@ func main() {
 
 	go func() {
 		// open a connection to the NATS server
-		log.Infof("opening connection to '%s'...", config.GetBrokerURL())
-		nc, err := nats.Connect(config.GetBrokerURL())
+		log.Infof("opening connection to cluster '%s' on %s'...", config.GetClusterID(), config.GetBrokerURL())
+		sc, err := stan.Connect(config.GetClusterID(), config.GetClientID(), stan.NatsURL(config.GetBrokerURL()))
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Can't connect: %v.\nMake sure a NATS Streaming Server is running at '%s'", err, config.GetBrokerURL())
 		}
-		defer func() {
-			log.Warn("closing the connection...")
-			nc.Close()
-		}()
-		log.Infof("connection opened: '%t'...", nc.IsConnected())
+		defer sc.Close()
+
+		log.Infof("connection established with server at '%s'", config.GetBrokerURL())
+
 		subjects := config.GetSubjects()
+
 		for _, sub := range subjects {
-			_, err = nc.QueueSubscribe(sub, fmt.Sprintf("queue-%s", sub), func(msg *nats.Msg) {
+			_, err = sc.QueueSubscribe(sub, config.GetQueueGroup(), func(msg *stan.Msg) {
 				// Handle the message
-				log.Infof("received message with subject '%s' on queue '%s': '%s'", msg.Subject, msg.Sub.Queue, string(msg.Data))
-			})
+				log.Infof("received message with subject '%s': '%s'", msg.Subject, string(msg.Data))
+			}, stan.DurableName(config.GetDurableName()), stan.DeliverAllAvailable())
 			if err != nil {
 				log.Fatal(err)
 			}

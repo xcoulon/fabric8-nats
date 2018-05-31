@@ -1,8 +1,6 @@
 package log
 
 import (
-	"fmt"
-
 	"github.com/fabric8-services/fabric8-nats/configuration"
 	"github.com/sirupsen/logrus"
 )
@@ -11,23 +9,38 @@ var config configuration.Config
 
 func init() {
 	config = configuration.New()
-
+	logrus.SetFormatter(&logrus.TextFormatter{
+		ForceColors: true,
+		// DisableSorting: true,
+	})
 }
 
-// Infof displays the msg with optional args at the `info` level,
+// Infof displays the given msg with optional args at the `info` level,
 // preceeded by the name of the pod in which the program is running.
 func Infof(msg string, args ...interface{}) {
-	logrus.Infof("[%s] %s", config.GetPodName(), fmt.Sprintf(msg, args...))
+	logrus.WithField("id", config.GetPodName()).Infof(msg, args...)
+}
+
+// Warn displays the given msg at the `warn` level,
+// preceeded by the name of the pod in which the program is running.
+func Warn(msg string) {
+	logrus.WithField("id", config.GetPodName()).Warn(msg)
+}
+
+// Warnf displays the given msg with optional args at the `warn` level,
+// preceeded by the name of the pod in which the program is running.
+func Warnf(msg string, args ...interface{}) {
+	logrus.WithField("id", config.GetPodName()).Warnf(msg, args...)
 }
 
 // Fatal displays the given err at the `fatal` level,
 // preceeded by the name of the pod in which the program is running.
 func Fatal(err error) {
-	logrus.Fatalf("[%s] %v", config.GetPodName(), err)
+	logrus.WithField("id", config.GetPodName()).Fatal(err.Error())
 }
 
-// Warn displays the given err at the `warn` level,
+// Fatalf displays the given err at the `fatal` level,
 // preceeded by the name of the pod in which the program is running.
-func Warn(msg string) {
-	logrus.Warn("[%s] %s", config.GetPodName(), msg)
+func Fatalf(msg string, args ...interface{}) {
+	logrus.WithField("id", config.GetPodName()).Fatalf(msg, args...)
 }
